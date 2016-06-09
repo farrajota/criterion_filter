@@ -1,7 +1,7 @@
 # Label ignore/filter for torch/nn
 
 Ignore/bypass some inputs according to a specific set of ignore labels. 
-This package allows for general, out-of-the-box criterions in [torch/nn](https://github.com/torch/nn)
+This package allows for generally available, out-of-the-box criterions in [torch/nn](https://github.com/torch/nn)
 to be used in situations where a specific label of a certain class/output 
 is needed to be overlooked/ignored when backproping through a network model.
 
