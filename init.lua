@@ -1,4 +1,5 @@
 require('torch')
+require('nn')
 
 criterion_filter = {}
 

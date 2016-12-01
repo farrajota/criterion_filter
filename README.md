@@ -5,6 +5,14 @@ This package allows for generally available, out-of-the-box criterions in [torch
 to be used in situations where a specific label of a certain class/output 
 is needed to be overlooked/ignored when backproping through a network model.
 
+## Install
+
+To install the package simply do the following:
+```
+git clone https://github.com/farrajota/criterion_filter
+cd criterion_filter && luarocks make
+```
+
 
 ## Usage
 
@@ -40,15 +48,16 @@ target = torch.Tensor(5):random(1,4)
 -- 4. compute loss (forward pass only)
 -- 4.1. (no labels to be ignored at this point)
 output = model:forward(input)
+print('Output Tensor:')
 print(output)
 err1 = criterion:forward(output,target)
-print(err1)
+print('Error with no ignored labels: ' .. err1)
 
 -- 4.2. set one target label to 0 (to be ignored)
 target[5] = 0
 err2 = criterion:forward(output,target)
-print(err2)
-print(err1 == err2)
+print('Error after setting one target label to 0: ' ..err2)
+print('Error equal? ' .. tostring(err1 == err2))
 ```
 Example 2
 ```lua
@@ -112,7 +121,7 @@ prl:add(nn.Linear(10,10))
 model:add(prl)
 
 -- 2. define criterions
-criterion = criterion_ignore.Parallel()
+criterion = criterion_filter.Parallel()
 criterion:add(nn.ClassNLLCriterion(), 1, 6) -- set different ignore labels
 criterion:add(nn.ClassNLLCriterion(), 1, 7) -- set different ignore labels
 
@@ -161,7 +170,7 @@ prl:add(nn.Linear(10,4))
 model:add(prl)
 
 -- 2. define criterions
-criterion = criterion_ignore.Parallel()
+criterion = criterion_filter.Parallel()
 criterion:add(nn.ClassNLLCriterion(), 1)  -- no ignore label defined
 criterion:add(nn.MSECriterion(), 0.5, torch.Tensor({1,1,1,1})) -- set an ignore label
 
