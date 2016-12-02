@@ -183,11 +183,11 @@ target2 = torch.Tensor(5,4):uniform()
 -- 4.1. without ignore labels
 output = model:forward(input)
 err1 = criterion:forward(output, {target1, target2})
-print(err1)
+print('Error without ignore labels: ' .. err1)
 
 -- 4.2. now with ignored/blacklisted labels
 target2[2]:fill(1)
 target2[5]:fill(1)
 err2 = criterion:forward(output, {target1, target2})
-print(err2)
+print('Error with ignore labels: ' .. err2)
 ```
