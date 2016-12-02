@@ -115,6 +115,7 @@ function SingleCriterionFilterLabel:updateOutput(input, target)
         input_filtered, target_filtered = input, target
     end
     self.output = self.criterion:updateOutput(input_filtered, target_filtered)
+    self.criterion:updateOutput(input, target) -- some criterions are internally composed of other criterions and usually use stored cache data, and in order to avoid size mismatches this just does a forward pass with the full data.
     return self.output
 end
 

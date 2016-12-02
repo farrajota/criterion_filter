@@ -129,6 +129,7 @@ function ParallelCriterionFilterLabel:updateOutput(input, target)
             input_filtered, target_filtered = input[i], target
         end
         self.output = self.output + self.weights[i]*criterion:updateOutput(input_filtered, target_filtered)
+        self.criterion:updateOutput(input, target) -- some criterions are internally composed of other criterions and usually use stored cache data, and in order to avoid size mismatches this just does a forward pass with the full data.
     end
     return self.output
 end
