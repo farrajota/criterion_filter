@@ -23,7 +23,15 @@ function ParallelCriterionFilterLabel:setIgnoreLabels(ignore_label)
     
     if type(ignore_label) == 'table' then
         for k,v in pairs(ignore_label) do
-            table.insert(labels, v)
+            if type(v) == 'table' then
+                table.insert(labels, torch.Tensor(v))
+            elseif type(v) == 'number' then
+                table.insert(labels, v)
+            elseif type(v) == 'userdata' then
+                table.insert(labels, v)
+            else
+                error('Table values type undefined: ' .. type(v)..'. Values must be either table, number or tensor types.')
+            end
         end
     elseif type(ignore_label) == 'number' then
         table.insert(labels, ignore_label)
@@ -33,6 +41,55 @@ function ParallelCriterionFilterLabel:setIgnoreLabels(ignore_label)
         error('ignore_label must be a number, table or Tensor.')
     end
     return labels
+end
+
+function ParallelCriterionFilterLabel:getFilteredIndexes(target, filterLabel, flag)
+    local indexes = {}
+    if flag == 0 then
+        -- fetch indexes to NOT be filtered/ignored
+        if target:dim() > 1 then
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (torch.add(target[i],-v):sum() == 0) then
+                        indexes[i] = 1
+                    end      
+                end
+            end
+        else
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (target[i] == v) then 
+                        indexes[i] = 1
+                    end      
+                end
+            end
+        end
+    else
+        -- fetch indexes to be filtered/ignored
+        if target:dim() > 1 then
+            -- compare tensors
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if torch.add(target[i],-v):sum() == 0 then
+                        indexes[i] = 1
+                    end      
+                end
+            end
+        else
+            --compare numbers
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (target[i] == v) then 
+                        indexes[i] = 1
+                    end
+                end
+            end
+        end
+    end
+    -- convert hash indexes to table entries
+    local indexTable = {}
+    for k, _ in pairs(indexes) do table.insert(indexTable, k) end  
+    return torch.LongTensor(indexTable)
 end
 
 function ParallelCriterionFilterLabel:getFilteredIndexes(target, filterLabel, flag)

@@ -19,7 +19,6 @@ function SingleCriterionFilterLabel:__init(criterion, ignore_label)
     self.filterLabel = self:setIgnoreLabels(ignore_label)
 end
 
-
 -- add ignore/filter labels
 function SingleCriterionFilterLabel:setIgnoreLabels(ignore_label)
     local labels = {}
@@ -30,7 +29,7 @@ function SingleCriterionFilterLabel:setIgnoreLabels(ignore_label)
     if type(ignore_label) == 'table' then
         for k,v in pairs(ignore_label) do
             if type(v) == 'table' then
-                table.insert(labels, torch.DoubleTensor(v))
+                table.insert(labels, torch.Tensor(v))
             elseif type(v) == 'number' then
                 table.insert(labels, v)
             elseif type(v) == 'userdata' then
@@ -49,91 +48,54 @@ function SingleCriterionFilterLabel:setIgnoreLabels(ignore_label)
     return labels
 end
 
-
 function SingleCriterionFilterLabel:getFilteredIndexes(target, filterLabel, flag)
-    local idx
-    if not next(filterLabel) then
-        -- filter label table is empty, return all indexes
-        return torch.range(1, target:size(1)):long()
-    end
-    
-    --------------------------------------
-    local function SqueezeDim(indexes)
-        if indexes:dim()==1 then
-            return indexes
-        else
-            return indexes:select(2,1)
-        end
-    end
-    --------------------------------------
-    
+    local indexes = {}
     if flag == 0 then
         -- fetch indexes to NOT be filtered/ignored
-        for k,v in pairs(filterLabel) do
-            local inds
-            if target:dim()>1 then
-                if type(v) == 'userdata' then
-                    assert(target:size(2)==v:size(1), ('Target and Label size mismatch: %d ~= %d. Target and label must be the same size.'):format(target:size(2),v:size(1)))
-                    inds = target:eq(v:repeatTensor(target:size(1),1))
-                                 :sum(2):ne(target:size(1)):byte():nonzero()
-                elseif type(v) == 'number' and target:size(2)==1 then
-                    inds = target:ne(v):byte():nonzero()
-                else
-                    error('Target dimension should be compatible with the ignore label: target=' .. target:size(2)..', label=1')
+        if target:dim() > 1 then
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (torch.add(target[i],-v):sum() == 0) then
+                        indexes[i] = 1
+                    end      
                 end
-            else
-                inds = target:ne(v):byte():nonzero()
             end
-             
-            if inds:numel()>0 then -- check if empty
-                if idx then
-                    idx = idx:cat(SqueezeDim(inds),1)
-                else
-                    idx = SqueezeDim(inds)
+        else
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (target[i] == v) then 
+                        indexes[i] = 1
+                    end      
                 end
             end
         end
     else
         -- fetch indexes to be filtered/ignored
-        for k,v in pairs(filterLabel) do
-            local inds
-            if target:dim()>1 then
-                if type(v) == 'userdata' then
-                    assert(target:size(2)==v:size(1), ('Target and Label size mismatch: %d ~= %d. Target and label must be the same size.'):format(target:size(2),v:size(1)))
-                    inds = target:eq(v:repeatTensor(target:size(1),1))
-                                 :sum(2):eq(target:size(1)):byte():nonzero()
-                elseif type(v) == 'number' and target:size(2)==1 then
-                    inds = target:ne(v):byte():nonzero()
-                else
-                    error('Target dimension should be compatible with the ignore label: target=' .. target:size(2)..', label=1')
-                end
-            else
-                inds = target:ne(v):byte():nonzero()
-            end
-             
-            if inds:numel()>0 then -- check if empty
-                if idx then
-                    idx = idx:cat(SqueezeDim(inds),1)
-                else
-                    idx = SqueezeDim(inds)
+        if target:dim() > 1 then
+            -- compare tensors
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if torch.add(target[i],-v):sum() == 0 then
+                        indexes[i] = 1
+                    end      
                 end
             end
-        end
-    end
-    
-    if idx then
-        if idx:numel()>1 then
-            return idx:squeeze()
-        elseif idx:numel()==1 then 
-            return idx:squeeze(1)
         else
-             torch.LongTensor()
+            --compare numbers
+            for k, v in pairs(filterLabel) do
+                for i=1, target:size(1) do
+                    if not (target[i] == v) then 
+                        indexes[i] = 1
+                    end
+                end
+            end
         end
-    else
-        return torch.LongTensor()
     end
+    -- convert hash indexes to table entries
+    local indexTable = {}
+    for k, _ in pairs(indexes) do table.insert(indexTable, k) end  
+    return torch.LongTensor(indexTable)
 end
-
 
 function SingleCriterionFilterLabel:updateOutput(input, target)
     self.output = 0
@@ -155,7 +117,6 @@ function SingleCriterionFilterLabel:updateOutput(input, target)
     self.output = self.criterion:updateOutput(input_filtered, target_filtered)
     return self.output
 end
-
 
 function SingleCriterionFilterLabel:updateGradInput(input, target)
     local criterion_gradInput = self.criterion:updateGradInput(input, target)
