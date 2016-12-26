@@ -103,19 +103,19 @@ function SingleCriterionFilterLabel:updateOutput(input, target)
     local input_filtered, target_filtered
     if next(self.filterLabel) then
         local indexes = self:getFilteredIndexes(target, self.filterLabel, 0) --fetch indexes to compute the loss
+        
+        input_filtered = input:clone():fill(0)
+        target_filtered = input_filtered:clone()
+        
         if indexes:numel()>0 then
-            input_filtered = input:index(1,indexes)
-            target_filtered = target:index(1,indexes)
-        else
-            -- empty table, set some temporary tensors
-            input_filtered = torch.Tensor({0}):typeAs(input)
-            target_filtered = input_filtered:clone()
+            -- fill tensors with data
+            input_filtered:narrow(1,1,indexes:numel()):copy(input:index(1,indexes))
+            target_filtered:narrow(1,1,indexes:numel()):copy(target:index(1,indexes))
         end
     else
         input_filtered, target_filtered = input, target
     end
     self.output = self.criterion:updateOutput(input_filtered, target_filtered)
-    self.criterion:updateOutput(input, target) -- some criterions are internally composed of other criterions and usually use stored cache data, and in order to avoid size mismatches this just does a forward pass with the full data.
     return self.output
 end
 

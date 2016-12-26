@@ -110,26 +110,27 @@ end
 function ParallelCriterionFilterLabel:updateOutput(input, target)
     self.output = 0
     for i,criterion in ipairs(self.criterions) do
-        local target = self.repeatTarget and target or target[i]
+        local target_ = self.repeatTarget and target or target[i]
+        local input_ = input[i]
         local filterLabel = self.filterLabel[i]
         -- find indexes to not be ignored (if any)
         local input_filtered, target_filtered
         if next(self.filterLabel) then
             --fetch indexes to compute the loss
-            local indexes = self:getFilteredIndexes(target, filterLabel, 0) 
+            local indexes = self:getFilteredIndexes(target_, filterLabel, 0)
+            
+            input_filtered = input_:clone():fill(0)
+            target_filtered = input_filtered:clone()
+            
             if indexes:numel()>0 then
-                input_filtered = input[i]:index(1,indexes)
-                target_filtered = target:index(1,indexes)
-            else
-                -- empty table, set some temporary tensors
-                input_filtered = torch.Tensor({0}):typeAs(input)
-                target_filtered = input_filtered:clone()
+                -- fill tensors with data
+                input_filtered:narrow(1,1,indexes:numel()):copy(input_:index(1,indexes))
+                target_filtered:narrow(1,1,indexes:numel()):copy(target_:index(1,indexes))
             end
         else
-            input_filtered, target_filtered = input[i], target
+            input_filtered, target_filtered = input_, target_
         end
         self.output = self.output + self.weights[i]*criterion:updateOutput(input_filtered, target_filtered)
-        self.criterion:updateOutput(input, target) -- some criterions are internally composed of other criterions and usually use stored cache data, and in order to avoid size mismatches this just does a forward pass with the full data.
     end
     return self.output
 end
