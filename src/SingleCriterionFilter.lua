@@ -109,8 +109,8 @@ function SingleCriterionFilterLabel:updateOutput(input, target)
         
         if indexes:numel()>0 then
             -- fill tensors with data
-            input_filtered:narrow(1,1,indexes:numel()):copy(input:index(1,indexes))
-            target_filtered:narrow(1,1,indexes:numel()):copy(target:index(1,indexes))
+            input_filtered:indexCopy(1, indexes, input:index(1,indexes))
+            target_filtered:indexCopy(1, indexes, target:index(1,indexes))
         end
     else
         input_filtered, target_filtered = input, target
