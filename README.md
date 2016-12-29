@@ -39,11 +39,11 @@ model:add(nn.Linear(10,4))
 
 -- 2. define criterion
 nll = nn.ClassNLLCriterion()
-criterion = criterion_filter.Single(nll, 0) -- set to ignore class 0
+criterion = criterion_filter.Single(nll, 4) -- set to ignore class 4
 
 -- 3. define input data 
 input = torch.Tensor(5,10):uniform()
-target = torch.Tensor(5):random(1,4)
+target = torch.Tensor(5):random(1,3)
 
 -- 4. compute loss (forward pass only)
 -- 4.1. (no labels to be ignored at this point)
@@ -54,7 +54,7 @@ err1 = criterion:forward(output,target)
 print('Error with no ignored labels: ' .. err1)
 
 -- 4.2. set one target label to 0 (to be ignored)
-target[5] = 0
+target[5] = 4
 err2 = criterion:forward(output,target)
 print('Error after setting one target label to 0: ' ..err2)
 print('Error equal? ' .. tostring(err1 == err2))
@@ -83,14 +83,14 @@ target = torch.Tensor(5,4):uniform()
 -- 4.1. (no labels to be ignored at this point)
 output = model:forward(input)
 err1 = criterion:forward(output,target)
-gradOutput1 = criterion:backward(output,target)
+gradOutput1 = criterion:backward(output,target):clone()
 print(err1)
 print(gradOutput1)
 
 -- 4.2. set one target to 0's (to be ignored)
 target[1]:fill(0)
 err2 = criterion:forward(output,target)
-gradOutput2 = criterion:backward(output,target)
+gradOutput2 = criterion:backward(output,target):clone()
 print(err2)
 print(gradOutput2)
 
@@ -98,7 +98,7 @@ print(gradOutput2)
 target[3]:fill(0)
 target[4]:copy(torch.Tensor{1,2,3,4})
 err3 = criterion:forward(output,target)
-gradOutput3 = criterion:backward(output,target)
+gradOutput3 = criterion:backward(output,target):clone()
 print(err3)
 print(gradOutput3)
 ```
@@ -128,7 +128,9 @@ criterion:add(nn.ClassNLLCriterion(), 1, 7) -- set different ignore labels
 -- 3. define input data
 input = torch.Tensor(5,10):uniform()
 target1 = torch.Tensor(5):random(1,10)
+target1[1]=1
 target2 = torch.Tensor(5):random(1,10)
+target2[1]=1
 
 -- 4. compute loss
 -- 4.1. without ignore labels
@@ -141,14 +143,14 @@ err1 = criterion:forward(output,{target1, target2})
 print(err1)
 
 -- 4.2. now with ignored/blacklisted labels
-target1[2] = 6
-target2[2] = 7 
+target1[1] = 6
+target2[1] = 7 
 err2 = criterion:forward(output,{target1, target2})
 print(err2)
 
 -- 4.3. flip labels 
-target1[2] = 7
-target2[2] = 6 
+target1[1] = 7
+target2[1] = 6 
 err3 = criterion:forward(output,{target1, target2})
 print(err3)
 ```

@@ -35,7 +35,7 @@ function SingleCriterionFilterLabel:setIgnoreLabels(ignore_label)
             elseif type(v) == 'userdata' then
                 table.insert(labels, v)
             else
-                error('Table values type undefined: ' .. type(v)..'. Values must be either table, number or tensor types.')
+                error('Table values type undefined: ' .. type(v).. '. Values must be either table, number or tensor types.')
             end
         end
     elseif type(ignore_label) == 'number' then
@@ -48,74 +48,88 @@ function SingleCriterionFilterLabel:setIgnoreLabels(ignore_label)
     return labels
 end
 
-function SingleCriterionFilterLabel:getFilteredIndexes(target, filterLabel, flag)
-    local indexes = {}
-    if flag == 0 then
-        -- fetch indexes to NOT be filtered/ignored
-        if target:dim() > 1 then
-            for k, v in pairs(filterLabel) do
-                for i=1, target:size(1) do
-                    if not (torch.add(target[i],-v):sum() == 0) then
-                        indexes[i] = 1
-                    end      
-                end
-            end
-        else
-            for k, v in pairs(filterLabel) do
-                for i=1, target:size(1) do
-                    if not (target[i] == v) then 
-                        indexes[i] = 1
-                    end      
-                end
-            end
-        end
+-- keep indexes to NOT be filtered/ignored
+function SingleCriterionFilterLabel:keepIndexes(target, filterLabel)
+    local checkEqual
+    if target:dim() > 1 then
+        checkEqual = function(target,v) return (torch.add(target,-v):sum() == 0) end
     else
-        -- fetch indexes to be filtered/ignored
-        if target:dim() > 1 then
-            -- compare tensors
-            for k, v in pairs(filterLabel) do
-                for i=1, target:size(1) do
-                    if torch.add(target[i],-v):sum() == 0 then
-                        indexes[i] = 1
-                    end      
-                end
-            end
-        else
-            --compare numbers
-            for k, v in pairs(filterLabel) do
-                for i=1, target:size(1) do
-                    if not (target[i] == v) then 
-                        indexes[i] = 1
-                    end
-                end
-            end
+        checkEqual = function(target,v) return (target == v) end
+    end
+    
+    for i=1, target:size(1) do
+        for k, v in pairs(filterLabel) do
+            if checkEqual(target[i],v)then
+                self.indexes[i]=0
+                break
+            end      
         end
     end
-    -- convert hash indexes to table entries
-    local indexTable = {}
-    for k, _ in pairs(indexes) do table.insert(indexTable, k) end  
-    return torch.LongTensor(indexTable)
+end
+
+-- remove indexes to be filtered/ignored
+function SingleCriterionFilterLabel:skipIndexes(target, filterLabel)
+    local checkEqual
+    if target:dim() > 1 then
+        checkEqual = function(target,v) return (torch.add(target,-v):sum() == 0)  end
+    else
+        checkEqual = function(target,v) return (target == v) end
+    end
+  
+    -- compare tensors
+    for i=1, target:size(1) do
+        for k, v in pairs(filterLabel) do
+            if not checkEqual(target[i],v) then
+                self.indexes[i]=0
+                break
+            end      
+        end
+    end
+end
+
+function SingleCriterionFilterLabel:getFilteredIndexes(target, filterLabel, flag)
+    self.indexes = torch.range(1,target:size(1))
+    if flag == 0 then
+        self:keepIndexes(target, filterLabel)
+    else
+        self:skipIndexes(target, filterLabel)
+    end
+    local ind = self.indexes:gt(0):nonzero()
+    if ind:numel()>0 then
+        ind = ind:squeeze()
+        if type(ind) == 'number' then
+            ind = torch.LongTensor{ind}
+        end
+    end
+    return ind
 end
 
 function SingleCriterionFilterLabel:updateOutput(input, target)
     self.output = 0
     assert(torch.type(input) == torch.type(target), ('Target and input type mismatch: %s ~= %s'):format(torch.type(target), torch.type(input)))
-    local input_filtered, target_filtered
+    local input_filtered, target_filtered = input, target
+    local flag_updateOutput = true
+    
     if next(self.filterLabel) then
         local indexes = self:getFilteredIndexes(target, self.filterLabel, 0) --fetch indexes to compute the loss
-        
-        input_filtered = input:clone():fill(0)
-        target_filtered = input_filtered:clone()
-        
         if indexes:numel()>0 then
-            -- fill tensors with data
-            input_filtered:indexCopy(1, indexes, input:index(1,indexes))
-            target_filtered:indexCopy(1, indexes, target:index(1,indexes))
+            -- Select fields from the data tensors
+            input_filtered = input_filtered:index(1, indexes)
+            target_filtered = target_filtered:index(1, indexes)
+        else
+            flag_updateOutput = false
         end
-    else
-        input_filtered, target_filtered = input, target
     end
-    self.output = self.criterion:updateOutput(input_filtered, target_filtered)
+    
+    if flag_updateOutput then 
+        self.output = self.criterion:updateOutput(input_filtered, target_filtered) 
+    else
+        self.output = 0
+    end
+    -- Some criterions (like ClassNLLCriterion) need to save the state of the forward pass. 
+    -- This fixes the internal state of custom criterions that need to keep the input/target 
+    -- sizes at the cost of a forward pass.
+    self.criterion:updateOutput(input,target)
     return self.output
 end
 
@@ -123,7 +137,9 @@ function SingleCriterionFilterLabel:updateGradInput(input, target)
     local criterion_gradInput = self.criterion:updateGradInput(input, target)
     if next(self.filterLabel) then
         local indexes = self:getFilteredIndexes(target, self.filterLabel, 1) 
-        if indexes:numel()>0 then criterion_gradInput:indexFill(1,indexes,0) end
+        if indexes:numel()>0 then 
+            criterion_gradInput:indexFill(1,indexes,0)
+        end
     end
     self.gradInput = criterion_gradInput
     return self.gradInput
@@ -131,7 +147,8 @@ end
 
 function SingleCriterionFilterLabel:cuda()
     for i=1, #self.filterLabel do
-        if string.match(torch.type(self.filterLabel[i]),'Tensor') and string.match(torch.type(self.filterLabel[i]),'torch') then
+        if string.match(torch.type(self.filterLabel[i]),'Tensor') and 
+          string.match(torch.type(self.filterLabel[i]),'torch') then
             self.filterLabel[i] = self.filterLabel[i]:cuda()
         end
     end
