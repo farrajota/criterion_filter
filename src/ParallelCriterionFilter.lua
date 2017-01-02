@@ -124,7 +124,7 @@ function ParallelCriterionFilterLabel:updateOutput(input, target)
         
         -- find indexes to not be ignored (if any)
         local input_filtered, target_filtered = input_, target_
-        if next(self.filterLabel) then
+        if next(filterLabel) then
             --fetch indexes to compute the loss
             local indexes = self:getFilteredIndexes(target_, filterLabel, 0)
             if indexes:numel()>0 then

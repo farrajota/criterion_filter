@@ -106,7 +106,6 @@ end
 
 function SingleCriterionFilterLabel:updateOutput(input, target)
     self.output = 0
-    assert(torch.type(input) == torch.type(target), ('Target and input type mismatch: %s ~= %s'):format(torch.type(target), torch.type(input)))
     local input_filtered, target_filtered = input, target
     local flag_updateOutput = true
     
