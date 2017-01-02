@@ -8,6 +8,8 @@ local tester = torch.Tester()
 
 local precision = 1e-5
 
+torch.manualSeed(4)
+
 require 'criterion_filter'
 --[[
 -- for debug purposes only
@@ -21,7 +23,7 @@ paths.dofile('src/ParallelCriterionFilter.lua')
 -- Single Criterion
 --===================================================
 
-function mytest.SingleForwardBackwardCriterionClassNLLCriterionNoIgnoreLabel()
+function mytest.SingleFwdBwdClassNLLCriterionNoIgnoreLabel()
 -- Do a forward pass through ClassNLLCriterion and it should give the same error even if the tensor is shuffled.
 
     -- define criterion
@@ -43,7 +45,7 @@ function mytest.SingleForwardBackwardCriterionClassNLLCriterionNoIgnoreLabel()
     tester:assertTensorNe(grad, grad:clone():fill(0), "Backward: gradient should be different than 0")
 end
 
-function mytest.SingleCriterionForwardClassNLLCriterionIgnoreLabel()
+function mytest.SingleFwdClassNLLCriterionIgnoreLabel()
 -- Do a forward pass through ClassNLLCriterion and it should give different results
 
     -- define criterion
@@ -61,7 +63,7 @@ function mytest.SingleCriterionForwardClassNLLCriterionIgnoreLabel()
     tester:ne(err1, err2, "err1 and err2 should be different")
 end
 
-function mytest.SingleCriterionForwardBackwardClassNLLCriterionIgnoreLabelALL()
+function mytest.SingleFwdBwdClassNLLCriterionIgnoreLabelALL()
 -- Do a forward pass through ClassNLLCriterion and it should give 0.
 
     -- define criterion
@@ -77,10 +79,10 @@ function mytest.SingleCriterionForwardBackwardClassNLLCriterionIgnoreLabelALL()
     local grad = criterion:backward(input, target)
     
     tester:assertTensorEq(grad, grad:clone():fill(0), precision, "Backward: gradient should be equal to 0")
+    tester:assertTensorEq(torch.LongTensor(grad:size()), torch.LongTensor(input:size()), "Backward: gradient and input size should be the same.")
 end
 
-
-function mytest.SingleCriterionForwardMSECriterionNoIgnoreLabel()
+function mytest.SingleFwdMSECriterionNoIgnoreLabel()
 -- Do a forward pass through MSECriterion and it should give the same error even if the tensor is shuffled.
 
     -- define criterion
@@ -98,7 +100,7 @@ function mytest.SingleCriterionForwardMSECriterionNoIgnoreLabel()
     tester:eq(err1,err1, precision, "err1 should be equal to err2")
 end
 
-function mytest.SingleCriterionForwardMSECriterionIgnoreLabel()
+function mytest.SingleFwdMSECriterionIgnoreLabel()
 -- Do a forward pass through MSECriterion and it should give different results 
 
     -- define criterion
@@ -116,7 +118,7 @@ function mytest.SingleCriterionForwardMSECriterionIgnoreLabel()
     tester:assertgt(math.abs(err1-err2), precision, "err1-err2 should be greater than " .. precision)
 end
 
-function mytest.SingleCriterionForwardMSECriterionIgnoreSameError()
+function mytest.SingleFwdMSECriterionIgnoreSameError()
 -- Do a forward pass through MSECriterion and it should give different results 
 
     -- define criterion
@@ -142,7 +144,7 @@ function mytest.SingleCriterionForwardMSECriterionIgnoreSameError()
     tester:ne(err1,err3, precision, "err1 should be different to err3")
 end
 
-function mytest.SingleCriterionForwardMSECriterionIgnoreTensorLabel()
+function mytest.SingleFwdCrossEntropyCriterionIgnoreTensorLabel()
 -- Do a forward pass through MSECriterion and it should give different results 
 
     -- define criterion
@@ -162,7 +164,7 @@ function mytest.SingleCriterionForwardMSECriterionIgnoreTensorLabel()
     tester:eq(err1*10,err2*9, precision, "err1 should be equal to err2")
 end
 
-function mytest.SingleCriterionForwardMSECriterionIgnoreMultipleLabels()
+function mytest.SingleFwdMSECriterionIgnoreMultipleLabels()
 -- Do a forward pass through MSECriterion and it should give different results for each label
 
     -- define criterion
@@ -185,7 +187,7 @@ function mytest.SingleCriterionForwardMSECriterionIgnoreMultipleLabels()
     end
 end
 
-function mytest.SingleCriterionForwardMSECriterionIgnoreLabelALL()
+function mytest.SingleFwdMSECriterionIgnoreLabelALL()
 -- Do a forward pass through MSECriterion and it should give 0.
 
      -- define criterion
@@ -199,7 +201,7 @@ function mytest.SingleCriterionForwardMSECriterionIgnoreLabelALL()
     tester:eq(err1, 0, "err1 should be equal to 0")
 end
 
-function mytest.SingleForwardBackwardCriterionMSECriterionTensorTypes()
+function mytest.SingleFwdBwdMSECriterionTensorTypes()
 -- Do a forward pass through ClassNLLCriterion and it should give the same error even if the tensor is shuffled.
 
     -- define criterion
@@ -230,12 +232,122 @@ function mytest.SingleForwardBackwardCriterionMSECriterionTensorTypes()
     end
 end
 
+function mytest.SingleFwdCrossEntropyCriterionIgnoreLabel()
+-- Do a forward pass through ClassNLLCriterion and it should give different results
+
+    -- define criterion
+    local nll = nn.CrossEntropyCriterion()
+    local criterion = criterion_filter.Single(nll, 1) -- set to ignore class 0
+
+    local input = torch.Tensor(10,5):uniform()
+    local target = torch.Tensor(10):random(2,5)
+    local err1 = criterion:forward(input,target)
+    
+    -- shuffle indexes
+    target[1]=1 -- force this value to at least be 5
+    local err2 = criterion:forward(input,target)
+
+    tester:ne(err1, err2, "err1 and err2 should be different")
+end
+
+function mytest.SingleFwdCrossEntropyCriterionIgnoreTwoLabels()
+-- Do a forward pass through ClassNLLCriterion and it should give different results
+
+    -- define criterion
+    local nll = nn.CrossEntropyCriterion()
+    local criterion = criterion_filter.Single(nll, {4,5}) -- set to ignore class 0
+
+    local input = torch.Tensor(10,5):uniform()
+    local target = torch.Tensor(10):random(1,3)
+    local err1 = criterion:forward(input,target)
+    
+    target[1]=4 -- force this value to at least be 5
+    local err2 = criterion:forward(input,target)
+
+    tester:ne(err1, err2, "err1 and err2 should be different")
+    
+    target[1]=5 -- force this value to at least be 5
+    local err3 = criterion:forward(input,target)
+
+    tester:ne(err1, err3, "err1 and err2 should be different")
+    tester:eq(err2, err3, precision, "err1 and err2 should be equal")
+    
+    target[1]=5 -- force this value to at least be 5
+    target[2]=4 -- force this value to at least be 5
+    local err4 = criterion:forward(input,target)
+    
+    tester:ne(err2, err4, "err2 and err4 should be different")
+    tester:ne(err3, err4, "err3 and err4 should be different")
+end
+
+
+function mytest.SingleFwdCrossEntropyCriterionIgnoreLabelsRandom()
+-- Do a forward pass through CrossEntropyCriterion over many different tensor sizes and labels
+
+    -- define criterion
+    local nll = nn.CrossEntropyCriterion()
+    
+    local data_max_size = 32
+    local data_max_classes = 32
+    local max_num_iters = 10
+    local max_num_classes_ignore = data_max_classes/2
+    
+    local function getRandomIgnoreLabels(nClasses, nIgnore)
+        local rand = torch.randperm(nClasses)
+        local max_samples = math.min(nClasses, nIgnore)
+        return rand:index(1,torch.range(1,max_samples):long()):totable()
+    end
+    
+    local function getNonIgnoredLabel(nClasses,ignoreLabels)
+        while true do
+            local flag_good = true
+            local label = torch.random(1,nClasses)
+            for i=1, #ignoreLabels do
+                if label == ignoreLabels[i] then
+                    flag_good = false
+                end
+            end
+            if flag_good then
+                return label
+            end
+        end        
+    end
+    
+    
+    for i=1, max_num_iters do
+      
+        local size_data = torch.random(10,data_max_size)
+        local n_classes = torch.random(1,data_max_classes)
+        local n_ignore_labels = torch.random(1,math.min(n_classes,max_num_classes_ignore))
+        local ignore_classes = getRandomIgnoreLabels(n_classes, n_ignore_labels)
+        local good_label = getNonIgnoredLabel(n_classes, ignore_classes)
+        local n_samples = math.floor(torch.random(1,size_data)/2)
+        
+        local input = torch.Tensor(size_data,n_classes):uniform()
+        local target = torch.Tensor(size_data):random(1,n_classes)
+        target:indexFill(1, torch.range(1,n_samples):long(), good_label)
+        
+        local criterion = criterion_filter.Single(nll, ignore_classes) -- set to ignore class 0
+
+        local err1 = criterion:forward(input,target)
+        
+        -- populate data with ignore labels
+        local ind = torch.randperm(size_data)
+        for i=1, n_samples do
+            local random_label = torch.random(1,n_ignore_labels)
+            target[i] = ignore_classes[random_label]
+        end
+        local err2 = criterion:forward(input,target)
+        tester:ne(err1, err2, "err1 and err2 should be different (iter"..i..')')
+    end
+    
+end
 
 --===================================================
 -- Parallel Criterion
 --===================================================
 
-function mytest.ParallelCriterionForwardBackwardSingleClassNLLCriterionNoIgnoreLabel()
+function mytest.PrlFwdBwdSingleClassNLLCriterionNoIgnoreLabel()
 
     -- define criterion
     local nll = nn.ClassNLLCriterion()
@@ -256,7 +368,7 @@ function mytest.ParallelCriterionForwardBackwardSingleClassNLLCriterionNoIgnoreL
     tester:assertTableNe(grad, {input:clone():fill(0)}, "Backward: gradient should be different than 0")
 end
 
-function mytest.ParallelCriterionForwardMultipleClassNLLCriterionNoIgnoreLabel()
+function mytest.PrlFwdBwdMultipleClassNLLCriterionNoIgnoreLabel()
 
     -- define criterion
     local nll = nn.ClassNLLCriterion()
@@ -280,7 +392,7 @@ function mytest.ParallelCriterionForwardMultipleClassNLLCriterionNoIgnoreLabel()
     tester:eq(err1, err2, "err1 and err2 should be equal")
 end
 
-function mytest.ParallelCriterionForwardMultipleCriterionsIgnoreLabels()
+function mytest.PrlFwdBwdMultipleCriterionsIgnoreLabels()
 
     -- define criterion
     local nll = nn.ClassNLLCriterion()
@@ -297,7 +409,7 @@ function mytest.ParallelCriterionForwardMultipleCriterionsIgnoreLabels()
 end
 
 
-function mytest.ParallelCriterionForwardBackwardMultipleCriterionsIgnoreLabelsALL()
+function mytest.PrlFwdBwdMultipleCriterionsIgnoreLabelsALL()
 
     -- define criterion
     local nll = nn.ClassNLLCriterion()
@@ -315,6 +427,28 @@ function mytest.ParallelCriterionForwardBackwardMultipleCriterionsIgnoreLabelsAL
     local grad = criterion:backward(input, target)
     
     tester:assertTableEq(grad, {torch.Tensor(10,5):fill(0), torch.Tensor(10,5):fill(0)}, precision, "Backward: gradient should be equal to 0")
+end
+
+
+function mytest.PrlFwdBwdSingleCrossEntropyCriterionNoIgnoreLabel()
+
+    -- define criterion
+    local nll = nn.CrossEntropyCriterion()
+    local criterion = criterion_filter.Parallel():add(nll, 1, 1) -- set to ignore class 0
+
+    local input = torch.Tensor(10,5):uniform()
+    local target = torch.Tensor(10):random(1,5)
+    local err1 = criterion:forward({input},{target})
+    
+    -- shuffle indexes
+    local shuffledIdx = torch.randperm(10):long()
+    local err2 = criterion:forward({input:index(1,shuffledIdx)},{target:index(1,shuffledIdx)})
+
+    tester:eq(err1, err2, precision, "err1 and err2 should be equal")
+    
+    local grad = criterion:backward({input}, {target})
+    
+    tester:assertTableNe(grad, {input:clone():fill(0)}, "Backward: gradient should be different than 0")
 end
 
 --===================================================
